@@ -1,0 +1,144 @@
+# dags/nyc_stream_chunks.py
+from datetime import datetime
+import io, time
+import pandas as pd
+import requests
+import pyarrow as pa
+import pyarrow.parquet as pq
+from io import BytesIO
+import pyarrow.fs as pafs
+from google.cloud import bigquery
+from airflow import DAG
+from airflow.decorators import task
+from airflow.models import Variable
+from airflow.exceptions import AirflowSkipException
+from airflow.providers.google.cloud.hooks.gcs import GCSHook
+
+PROJECT_ID = "real-time-cloud-data-pipeline"
+DATASET = "nyc_yellow_taxi"
+           # destination table
+BUCKET = "stream_data_gcs"     # bucket name only
+CHUNK_SIZE = 250_000            # rows per parquet part
+LOCATION   = "us-east4" 
+
+YEAR = Variable.get("year_stream")
+MONTH = Variable.get("month_stream")
+TABLE = f"nyc_trips_{YEAR}_{MONTH}" 
+
+default_args = {"owner": "airflow"}
+
+with DAG(
+    dag_id="nyc_stream_chunks_to_gcs_then_bq",
+    start_date=datetime(2023, 8, 1),
+    schedule=None,
+    catchup=False,
+    default_args=default_args,
+    tags=["nyc", "streaming", "gcs", "bq"],
+):
+
+    @task
+    def month_check():
+        if int(MONTH) == 8:
+            raise AirflowSkipException("Stopping DAG: the data exist until 8th month of 2025")
+
+    @task
+    def process_streaming():
+        url = f"https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{YEAR}-{MONTH}.parquet"
+
+        # 1) download at runtime
+        r = requests.get(url, timeout=120)
+        r.raise_for_status()
+
+        # 2) open parquet for row-group iteration
+        pf = pq.ParquetFile(io.BytesIO(r.content))  
+
+        bq = bigquery.Client(project=PROJECT_ID)
+
+        cols_to_abs = [
+            "fare_amount","cbd_congestion_fee","Airport_fee",
+            "congestion_surcharge","total_amount","improvement_surcharge",
+            "tolls_amount","mta_tax","extra"
+        ]
+        cols_to_cast = [
+            'VendorID', 'RatecodeID', 'PULocationID', 'DOLocationID','payment_type'
+        ]
+
+        part_id = 0
+        row_number = 1
+        for rg in range(pf.num_row_groups):
+            
+            t_rg = pf.read_row_group(rg)
+            df_partition = t_rg.to_pandas()  # only this RG in memory
+
+            # light transforms
+            df_partition["total_amount_and_tip"] = (df_partition["tip_amount"] + df_partition["total_amount"]).round(2)
+            df_partition["tpep_pickup_datetime_id"]  = df_partition["tpep_pickup_datetime"].dt.strftime("%Y%m%d").astype("Int64")
+            df_partition["tpep_dropoff_datetime_id"] = df_partition["tpep_dropoff_datetime"].dt.strftime("%Y%m%d").astype("Int64")
+            df_partition["store_and_fwd_flag"] = df_partition["store_and_fwd_flag"].astype(str)
+            df_partition[cols_to_abs] = df_partition[cols_to_abs].abs()
+            df_partition['row_number'] = range(row_number, len(df_partition.index)+row_number)
+            for x in cols_to_cast:
+                df_partition[x] = (
+                df_partition[x]
+                .apply(pd.to_numeric, errors='coerce')
+                .replace([float('inf'), float('-inf')], -1)
+                .astype('Int16')
+            )
+            df_partition['passenger_count'] = (
+                df_partition['passenger_count']
+                .apply(pd.to_numeric, errors='coerce')
+                .replace([float('inf'), float('-inf')], 1)
+                .astype('Int16')
+            )
+            
+            row_number+=len(df_partition.index)
+            
+            for start in range(0, len(df_partition), CHUNK_SIZE):
+                chunk_pdf = df_partition.iloc[start:start+CHUNK_SIZE]
+                table = pa.Table.from_pandas(chunk_pdf, preserve_index=False)
+                buf = BytesIO()
+                pq.write_table(table, buf, compression="snappy")   # or zstd/gzip
+                buf.seek(0)
+                # 3) write a single parquet chunk directly to GCS
+                object_name = f"yellow_tripdata_{YEAR}-{MONTH}_part{part_id}.parquet"
+                
+                GCSHook(gcp_conn_id="google_cloud_default").upload(
+                    bucket_name=BUCKET  ,
+                    object_name= object_name ,
+                    data=buf.getvalue(),            # upload bytes directly (no disk)
+                    mime_type="application/octet-stream",
+                )
+
+                # 4) immediately load that single object into BigQuery (append)
+                job_config = bigquery.LoadJobConfig(
+                    source_format=bigquery.SourceFormat.PARQUET,
+                    write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+                    autodetect=True,
+                )
+
+                gcs_uri = f"gs://{BUCKET}/{object_name}"
+                load_job = bq.load_table_from_uri(
+                    gcs_uri,
+                    f"{PROJECT_ID}.{DATASET}.{TABLE}",
+                    job_config=job_config,
+                    location=LOCATION,
+                )
+                load_job.result()  # wait for this chunk to finish
+
+                part_id += 1
+
+                # control stream rate
+                time.sleep(60*5)
+
+        return {"parts_written": part_id}
+
+    @task
+    def increment_month():
+        m = int(Variable.get("month_stream")) + 1
+        m = '0' + str(m)
+        Variable.set("month_stream", f"{m}")
+
+    # wiring
+    month_check() >> process_streaming() >>  increment_month()
+ 
+  

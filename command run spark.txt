@@ -1,0 +1,49 @@
+https://chatgpt.com/share/68b7756f-de14-8012-8ef3-e0a5c6f03699  # solve of dataproc error
+
+gs://dataproc_jobs_stream_batch/batch_script/dat_proc_batch_file.py
+
+gcloud dataproc jobs submit pyspark \
+--cluster=your_cluster_name \
+--region=your_region \
+gs://dataproc_jobs_stream_batch/batch_script/dat_proc_batch_file.py
+
+
+
+REGION=us-central1
+
+
+
+
+
+
+gcloud dataproc batches submit pyspark gs://dataproc_jobs_stream_batch/batch_script/dat_proc_batch_file.py \
+  --region=us-central1 \
+  --version=2.3 \
+  --jars=gs://dataproc_jobs_stream_batch/needed_jars/spark-snowflake_2.12-3.0.0.jar,gs://dataproc_jobs_stream_batch/needed_jars/snowflake-jdbc-3.18.1.jar
+
+
+
+ gsutil cp snowflake-jdbc-3.5.0.jar gs://dataproc_jobs_stream_batch/needed_jars/snowflake-jdbc-3.5.0.jar
+
+
+
+gcloud dataproc batches submit pyspark gs://dataproc_jobs_stream_batch/batch_script/dat_proc_batch_file.py \
+  --region=us-central1 \
+  --version=2.3 \
+  --jars=gs://dataproc_jobs_stream_batch/needed_jars/snowflake-jdbc-3.24.2.jar,gs://dataproc_jobs_stream_batch/needed_jars/spark-snowflake_2.13-3.1.4.jar
+
+
+gcloud dataproc batches submit pyspark gs://dataproc_jobs_stream_batch/batch_script/dat_proc_batch_file.py \
+  --region=us-central1 \
+  --version=2.3 \
+  --jars=gs://dataproc_jobs_stream_batch/needed_jars/snowflake-jdbc-3.24.2.jar,gs://dataproc_jobs_stream_batch/needed_jars/spark-snowflake_2.13-3.1.4.jar \
+  --subnet=projects/real-time-cloud-data-pipeline/regions/us-central1/subnetworks/default 
+
+
+
+
+
+
+
+
+
