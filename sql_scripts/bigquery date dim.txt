@@ -1,0 +1,21 @@
+CREATE OR REPLACE TABLE
+  your_project_id.your_dataset_id.date_dimension AS
+SELECT
+  CAST(date AS DATE) AS date_key,
+  EXTRACT(YEAR FROM date) AS year,
+  EXTRACT(MONTH FROM date) AS month,
+  FORMAT_DATE('%b', date) AS month_name_short,
+  FORMAT_DATE('%B', date) AS month_name_full,
+  EXTRACT(DAY FROM date) AS day_of_month,
+  EXTRACT(DAYOFWEEK FROM date) AS day_of_week_num, -- 1=Sunday, 7=Saturday
+  FORMAT_DATE('%a', date) AS day_of_week_short,
+  FORMAT_DATE('%A', date) AS day_of_week_full,
+  EXTRACT(QUARTER FROM date) AS quarter,
+  FORMAT_DATE('%V', date) AS week_of_year, -- ISO week of year
+  CASE
+    WHEN EXTRACT(DAYOFWEEK FROM date) IN (1, 7) THEN TRUE
+    ELSE FALSE
+  END AS is_weekend,
+  FORMAT_DATE('%Y%m%d', date) AS yyyymmdd_key
+FROM
+  UNNEST(GENERATE_DATE_ARRAY('2000-01-01', '2030-12-31', INTERVAL 1 DAY)) AS date;

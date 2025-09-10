@@ -1,0 +1,15 @@
+CREATE TABLE real-time-cloud-data-pipeline.nyc_yellow_taxi.Ratecode(
+    RatecodeID INT ,
+    RatecodeName string
+);
+
+
+
+INSERT INTO real-time-cloud-data-pipeline.nyc_yellow_taxi.Ratecode VALUES
+(1, 'Standard rate'),
+(2, 'JFK'),
+(3, 'Newark'),
+(4, 'Nassau or Westchester'),
+(5, 'Negotiated fare'),
+(6, 'Group ride'),
+(99, 'Null/unknown');

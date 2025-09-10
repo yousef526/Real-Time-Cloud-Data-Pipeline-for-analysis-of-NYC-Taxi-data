@@ -1,0 +1,11 @@
+create or replace TABLE real-time-cloud-data-pipeline.nyc_yellow_taxi.VENDOR_TYPE (
+	VENDORID INT NOT NULL,
+	VENDORNAME STRING,
+
+);
+
+INSERT INTO real-time-cloud-data-pipeline.nyc_yellow_taxi.VENDOR_TYPE VALUES
+(1, 'Creative Mobile Technologies, LLC'),
+(2, 'Curb Mobility, LLC'),
+(6, 'Myle Technologies Inc'),
+(7, 'Helix');

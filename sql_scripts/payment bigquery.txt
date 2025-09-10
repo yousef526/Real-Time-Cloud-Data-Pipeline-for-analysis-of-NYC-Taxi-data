@@ -1,0 +1,15 @@
+CREATE TABLE real-time-cloud-data-pipeline.nyc_yellow_taxi.payment(
+    payment_code int  ,
+     payment_type STRING
+);
+
+
+
+INSERT INTO real-time-cloud-data-pipeline.nyc_yellow_taxi.payment VALUES
+(0 , 'Flex Fare trip'),
+(1 , 'Credit card'),
+(2 , 'Cash'),
+(3 , 'No charge'),
+(4 , 'Dispute'),
+(5 , 'Unknown'),
+(6 , 'Voided trip');

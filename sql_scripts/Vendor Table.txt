@@ -1,0 +1,11 @@
+create or replace TABLE NYC_TAXI.TRIPS.VENDOR_TYPE (
+	VENDORID NUMBER(38,0) NOT NULL,
+	VENDORNAME VARCHAR(100),
+	primary key (VENDORID)
+);
+
+INSERT INTO VENDOR_TYPE VALUES
+(1, 'Creative Mobile Technologies, LLC'),
+(2, 'Curb Mobility, LLC'),
+(6, 'Myle Technologies Inc'),
+(7, 'Helix');
